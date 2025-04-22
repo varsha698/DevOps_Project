@@ -1,0 +1,33 @@
+- name: Deploy Flask App to EC2
+  hosts: web
+  become: yes
+  tasks:
+    - name: Update apt
+      apt:
+        update_cache: yes
+
+    - name: Install Docker
+      apt:
+        name: docker.io
+        state: present
+
+    - name: Install pip3
+      apt:
+        name: python3-pip
+        state: present
+
+    - name: Install Flask and Gunicorn
+      pip:
+        name:
+          - flask
+          - gunicorn
+
+    - name: Copy app file
+      copy:
+        src: ../app.py
+        dest: /home/ubuntu/app.py
+        mode: '0755'
+
+    - name: Run Flask app
+      shell: |
+        nohup python3 /home/ubuntu/app.py &
