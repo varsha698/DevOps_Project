@@ -1,0 +1,67 @@
+{
+  "widgets": [
+    {
+      "type": "metric",
+      "properties": {
+        "metrics": [
+          ["AWS/ApplicationELB", "RequestCount", "LoadBalancer", "app/flask-app-alb/..."],
+          [".", "HTTPCode_Target_2XX_Count", ".", "."],
+          [".", "HTTPCode_Target_4XX_Count", ".", "."],
+          [".", "HTTPCode_Target_5XX_Count", ".", "."]
+        ],
+        "period": 300,
+        "stat": "Sum",
+        "region": "us-east-1",
+        "title": "ALB Request Count"
+      }
+    },
+    {
+      "type": "metric",
+      "properties": {
+        "metrics": [
+          ["AWS/ApplicationELB", "TargetResponseTime", "LoadBalancer", "app/flask-app-alb/..."]
+        ],
+        "period": 300,
+        "stat": "Average",
+        "region": "us-east-1",
+        "title": "ALB Response Time"
+      }
+    },
+    {
+      "type": "metric",
+      "properties": {
+        "metrics": [
+          ["AWS/EC2", "CPUUtilization", "AutoScalingGroupName", "flask-app-asg"]
+        ],
+        "period": 300,
+        "stat": "Average",
+        "region": "us-east-1",
+        "title": "EC2 CPU Utilization"
+      }
+    },
+    {
+      "type": "metric",
+      "properties": {
+        "metrics": [
+          ["AWS/RDS", "CPUUtilization", "DBInstanceIdentifier", "flask-app-db"],
+          [".", "DatabaseConnections", ".", "."],
+          [".", "FreeStorageSpace", ".", "."]
+        ],
+        "period": 300,
+        "stat": "Average",
+        "region": "us-east-1",
+        "title": "RDS Metrics"
+      }
+    },
+    {
+      "type": "log",
+      "properties": {
+        "query": "SOURCE '/ec2/flask-app' | fields @timestamp, @message\n| filter @message like /ERROR/\n| sort @timestamp desc\n| limit 20",
+        "region": "us-east-1",
+        "title": "Application Errors",
+        "view": "table"
+      }
+    }
+  ]
+}
+

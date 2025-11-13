@@ -1,0 +1,114 @@
+- name: Deploy Flask App to EC2 using Docker
+  hosts: web
+  become: yes
+  vars:
+    app_name: flask-app
+    docker_image: "{{ ecr_registry }}/{{ app_name }}:{{ image_tag | default('latest') }}"
+    db_host: "{{ db_host | default('localhost') }}"
+    db_port: "{{ db_port | default('5432') }}"
+    db_name: "{{ db_name | default('flaskapp') }}"
+    db_user: "{{ db_user | default('postgres') }}"
+    db_password: "{{ db_password | default('postgres') }}"
+    aws_region: "{{ aws_region | default('us-east-1') }}"
+
+  tasks:
+    - name: Update apt cache
+      apt:
+        update_cache: yes
+        cache_valid_time: 3600
+
+    - name: Install required packages
+      apt:
+        name:
+          - docker.io
+          - docker-compose
+          - python3-pip
+          - awscli
+        state: present
+
+    - name: Start and enable Docker service
+      systemd:
+        name: docker
+        state: started
+        enabled: yes
+
+    - name: Add ubuntu user to docker group
+      user:
+        name: ubuntu
+        groups: docker
+        append: yes
+
+    - name: Install boto3 for ECR login
+      pip:
+        name:
+          - boto3
+        executable: pip3
+
+    - name: Login to AWS ECR
+      shell: |
+        aws ecr get-login-password --region {{ aws_region }} | docker login --username AWS --password-stdin {{ ecr_registry }}
+      environment:
+        AWS_ACCESS_KEY_ID: "{{ aws_access_key_id }}"
+        AWS_SECRET_ACCESS_KEY: "{{ aws_secret_access_key }}"
+      ignore_errors: yes
+
+    - name: Pull Docker image from ECR
+      docker_image:
+        name: "{{ docker_image }}"
+        source: pull
+      ignore_errors: yes
+
+    - name: Stop and remove existing container
+      docker_container:
+        name: "{{ app_name }}"
+        state: absent
+      ignore_errors: yes
+
+    - name: Create directory for logs
+      file:
+        path: /var/log/{{ app_name }}
+        state: directory
+        mode: '0755'
+
+    - name: Run Flask app container
+      docker_container:
+        name: "{{ app_name }}"
+        image: "{{ docker_image }}"
+        state: started
+        restart_policy: always
+        ports:
+          - "5000:5000"
+        env:
+          DB_HOST: "{{ db_host }}"
+          DB_PORT: "{{ db_port }}"
+          DB_NAME: "{{ db_name }}"
+          DB_USER: "{{ db_user }}"
+          DB_PASSWORD: "{{ db_password }}"
+          AWS_REGION: "{{ aws_region }}"
+        log_driver: "awslogs"
+        log_options:
+          awslogs-group: "/ec2/{{ app_name }}"
+          awslogs-region: "{{ aws_region }}"
+          awslogs-stream: "{{ inventory_hostname }}"
+        healthcheck:
+          test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5000/health')"]
+          interval: 30s
+          timeout: 10s
+          retries: 3
+          start_period: 40s
+
+    - name: Wait for container to be healthy
+      wait_for:
+        port: 5000
+        host: localhost
+        delay: 10
+        timeout: 60
+
+    - name: Verify container is running
+      docker_container:
+        name: "{{ app_name }}"
+      register: container_info
+
+    - name: Display container status
+      debug:
+        msg: "Container {{ app_name }} is {{ container_info.container.State.Status }}"
